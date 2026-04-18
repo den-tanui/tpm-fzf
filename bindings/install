@@ -1,0 +1,11 @@
+# tpm-fzf key bindings
+
+# Main plugin manager (lowercase i)
+bind-key -n M-i run-shell -b "~/.tmux/plugins/tpm-fzf/bin/fzf-plugins"
+
+# Alternative: direct run without prefix (uncomment if preferred)
+# bind-key -n C-i run-shell -b "~/.tmux/plugins/tpm-fzf/bin/fzf-plugins"
+
+# For direct invocation
+# Run: source-file ~/.tmux/plugins/tpm-fzf/bindings/install
+# Or add to tmux.conf: run-shell ~/.tmux/plugins/tpm-fzf/bindings/install

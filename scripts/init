@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# TPM-fzf initialization script
+# This file makes tpm-fzf a valid tmux plugin
+
+TPM_FZF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source library functions
+source "$TPM_FZF_DIR/lib/plugin_functions.sh"
+source "$TPM_FZF_DIR/lib/utility.sh"
+
+# Check TPM is installed
+tpm_check() {
+	if ! tmux has-session -t _tpm_check &>/dev/null 2>&1; then
+		# Check if tpm plugin path exists
+		local tpm_path
+		tpm_path="$(tmux start-server\; show-environment -g TMUX_PLUGIN_MANAGER_PATH 2>/dev/null | cut -f2 -d=)"
+		if [ -z "$tpm_path" ]; then
+			return 1
+		fi
+		# Check if tpm directory exists
+		if [ ! -d "${tpm_path}tpm" ]; then
+			return 1
+		fi
+	fi
+	return 0
+}
+
+# Show error if TPM not installed
+tpm_require() {
+	if ! tpm_check; then
+		tmux display-message "tpm-fzf: TPM (tmux-plugins/tpm) is not installed"
+		tmux display-message "Install TPM first: https://github.com/tmux-plugins/tpm"
+		return 1
+	fi
+	return 0
+}
+
+# Set default key binding (lowercase i)
+_tzf_set_default_keybindings() {
+	local key="${1:-i}"
+	tmux bind-key "$key" run-shell -b "$TPM_FZF_DIR/bin/fzf-plugins" \; display-message "tpm-fzf"
+}
+
+# Initialize plugin
+init_tpm_fzf() {
+	# Check TPM requirement
+	if ! tpm_check; then
+		return 1
+	fi
+	
+	# Set default keybinding if not already set
+	local current_key
+	current_key="$(tmux list-keys -g | grep 'run-shell.*tpm-fzf' | head -1)"
+	if [ -z "$current_key" ]; then
+		_tzf_set_default_keybindings "i"
+	fi
+}
+
+# Auto-initialize on source
+init_tpm_fzf

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# tpm-fzf main entry point
+# Bound to key binding (default: lowercase i)
+
+TPM_FZF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source library functions
+source "$TPM_FZF_DIR/lib/plugin_functions.sh"
+source "$TPM_FZF_DIR/lib/utility.sh"
+source "$TPM_FZF_DIR/scripts/variables.sh"
+
+# Check TPM is installed
+tpm_check() {
+	local tpm_path
+	tpm_path="$(tmux start-server\; show-environment -g TMUX_PLUGIN_MANAGER_PATH 2>/dev/null | cut -f2 -d=)"
+	if [ -z "$tpm_path" ] || [ ! -d "${tpm_path}tpm" ]; then
+		return 1
+	fi
+	return 0
+}
+
+# Show error message
+tpm_required() {
+	tmux display-message "tpm-fzf: TPM (tmux-plugins/tpm) is required but not found"
+	tmux display-message "Install TPM: https://github.com/tmux-plugins/tpm"
+}
+
+# Main entry
+main() {
+	if ! tpm_check; then
+		tpm_required
+		return 1
+	fi
+
+	local mode=""
+	[ "$1" = "--update" ] && mode="--update"
+
+	# Get popup options
+	local popup_enabled popup_width popup_height title
+	popup_enabled="$(get_tmux_option "$popup_option" "$default_popup")"
+
+	if [ "$popup_enabled" = "on" ] && command -v fzf &>/dev/null; then
+		popup_width="$(get_tmux_option "$popup_width_option" "$default_popup_width")"
+		popup_height="$(get_tmux_option "$popup_height_option" "$default_popup_height")"
+		title="TPM-fzf"
+		[ "$mode" = "--update" ] && title="TPM-fzf - Update"
+
+		tmux display-popup -E -w "$popup_width" -h "$popup_height" -T "$title" \
+			"cd '$TPM_FZF_DIR/scripts' && bash plugin_list.sh $mode"
+	else
+		if [ "$popup_enabled" != "on" ]; then
+			tmux display-message "tpm-fzf: Popup disabled, running legacy mode..."
+		else
+			tmux display-message "tpm-fzf: fzf not found, running legacy mode..."
+		fi
+
+		local tpm_path
+		tpm_path="$(tmux start-server\; show-environment -g TMUX_PLUGIN_MANAGER_PATH | cut -f2 -d=)"
+		if [ "$mode" = "--update" ]; then
+			bash "${tpm_path}tpm/bin/update_plugins" all
+		else
+			bash "${tpm_path}tpm/bin/install_plugins" --tmux-echo
+		fi
+	fi
+
+	# Reload tmux environment
+	local conf_file
+	conf_file=$(tmux show-env -g TMUX_CONF_LOCAL 2>/dev/null | cut -d= -f2-)
+	if [ -n "$conf_file" ]; then
+		tmux source-file "$conf_file" >/dev/null 2>&1
+	else
+		tmux source-file "$HOME/.tmux.conf" >/dev/null 2>&1
+	fi
+}
+
+main "$@"
