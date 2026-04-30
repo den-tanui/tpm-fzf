@@ -4,57 +4,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$(dirname "$CURRENT_DIR")/lib"
 
 source "$LIB_DIR/plugin_functions.sh"
-source "$LIB_DIR/utility.sh"
 source "$CURRENT_DIR/variables.sh"
-
-# Get tmux option helper (same as in tpm)
-get_tmux_option() {
-	local option="$1"
-	local default_value="$2"
-	local option_value="$(tmux show-option -gqv "$option" 2>/dev/null)"
-	if [ -z "$option_value" ]; then
-		echo "$default_value"
-	else
-		echo "$option_value"
-	fi
-}
-
-# Check if we should run in popup mode
-should_use_popup() {
-	local popup_enabled="$(get_tmux_option "$popup_option" "$default_popup")"
-	[ "$popup_enabled" = "on" ] && command -v fzf &>/dev/null
-}
-
-# Run in popup or legacy mode based on tmux options
-run_with_popup() {
-	local mode="$1" # "" for install, "--update" for update
-
-	if should_use_popup; then
-		local popup_width="$(get_tmux_option "$popup_width_option" "$default_popup_width")"
-		local popup_height="$(get_tmux_option "$popup_height_option" "$default_popup_height")"
-		local title="TPM"
-		[ "$mode" = "--update" ] && title="TPM - Update"
-
-		tmux display-popup -E -w "$popup_width" -h "$popup_height" -T "$title" \
-			"cd '$CURRENT_DIR' && bash plugin_list.sh $mode"
-	else
-		# Legacy mode - run directly
-		if [ "$mode" = "--update" ]; then
-			bash update_plugin.sh all
-		else
-			bash install_plugins.sh --tmux-echo
-		fi
-	fi
-
-	# Reload tmux environment after action completes
-	local conf_file
-	conf_file=$(tmux show-env -g TMUX_CONF_LOCAL 2>/dev/null | cut -d= -f2-)
-	if [ -n "$conf_file" ]; then
-		tmux source-file "$conf_file" >/dev/null 2>&1
-	else
-		tmux source-file "$HOME/.tmux.conf" >/dev/null 2>&1
-	fi
-}
 
 # ANSI color codes
 RED='\033[0;31m'
@@ -167,19 +117,44 @@ main() {
 	echo -e ""
 
 	local selection
-	selection=$(generate_plugin_list |
-		fzf --ansi \
-			--multi \
-			--preview="$CURRENT_DIR/plugin_preview.sh {}" \
-			--preview-window="right:70%:wrap" \
-			--border-label "Plugins" \
-			--header="Alt+R=refresh | Alt+S=source | Alt+I=install | Alt+U=update | Alt+C=clean | Tab=select | Enter=confirm | Alt+D=delete" \
-			--bind="alt-r:execute($CURRENT_DIR/refresh_available.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
-			--bind="alt-d:execute($CURRENT_DIR/plugin_delete.sh {} && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
-			--bind="alt-s:execute($CURRENT_DIR/plugin_source.sh && $CURRENT_DIR/plugin_reload.sh)" \
-			--bind="alt-i:execute($CURRENT_DIR/plugin_install_selected.sh {} && $CURRENT_DIR/plugin_reload.sh)" \
-			--bind="alt-u:execute($CURRENT_DIR/plugin_update.sh {} && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
-			--bind="alt-c:execute($CURRENT_DIR/../bin/clean_plugins && $CURRENT_DIR/plugin_reload.sh)")
+	# Helper to get dynamic footer based on plugin status
+_get_footer_actions() {
+	local selected="$1"
+	[[ -z "$selected" ]] && return
+
+	case "$selected" in
+		*\[installed\]*)
+			echo "${RED}remove${RESET} | ${YELLOW}update${RESET}"
+			;;
+		*\[pending\]*)
+			echo "${GREEN}install${RESET} | ${RED}clean${RESET}"
+			;;
+		*\[available\]*)
+			echo "${GREEN}install${RESET}"
+			;;
+		*\[orphaned\]*)
+			echo "${RED}remove${RESET}"
+			;;
+	esac
+}
+
+# Export footer helper for use in fzf binding
+export -f _get_footer_actions
+
+selection=$(generate_plugin_list |
+	fzf --ansi \
+		--no-multi \
+		--preview="$CURRENT_DIR/plugin_preview.sh {}" \
+		--preview-window="right:70%:wrap" \
+		--border-label "Plugins" \
+		--header="Alt+R:refresh | Alt+S:source | Alt+I:install"$'\n'"Alt+U:update | Alt+C:clean | Alt+D:delete | Enter:confirm" \
+		--bind="alt-r:execute($CURRENT_DIR/refresh_available.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
+		--bind="alt-d:execute($CURRENT_DIR/plugin_delete.sh {} && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
+		--bind="alt-s:execute($CURRENT_DIR/plugin_source.sh && $CURRENT_DIR/plugin_reload.sh)" \
+		--bind="alt-i:execute($CURRENT_DIR/plugin_install_selected.sh {} && $CURRENT_DIR/plugin_reload.sh)" \
+		--bind="alt-u:execute($CURRENT_DIR/plugin_update.sh {} && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
+		--bind="alt-c:execute($CURRENT_DIR/../bin/clean_plugins && $CURRENT_DIR/plugin_reload.sh)" \
+		--expect="enter")
 
 	if [ -n "$selection" ]; then
 		echo ""
