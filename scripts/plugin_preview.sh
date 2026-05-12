@@ -15,16 +15,38 @@ RESET='\033[0m'
 
 # Preview a README file (local or remote temp file)
 preview_readme() {
-	local readme_file="$1"
-	if [ -f "$readme_file" ]; then
-		if command -v bat &>/dev/null; then
-			bat --force-colorization --language=markdown --style=plain --wrap=auto "$readme_file"
-		else
-			cat "$readme_file"
-		fi
-	else
-		echo "(File not found)"
-	fi
+  local readme_file="$1"
+  if [ -f "$readme_file" ]; then
+    if command -v bat &>/dev/null; then
+      bat --force-colorization --language=markdown --style=plain --wrap=auto "$readme_file"
+    else
+      cat "$readme_file"
+    fi
+  else
+    echo "(File not found)"
+  fi
+}
+
+# Check if plugin has updates available
+check_plugin_updates() {
+  local plugin_path="$1"
+  if [ -d "$plugin_path/.git" ]; then
+    # Fetch latest remote info
+    if git -C "$plugin_path" fetch -q 2>/dev/null; then
+      # Check if local is behind remote
+      local behind_count
+      behind_count=$(git -C "$plugin_path" rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+      if [ "$behind_count" -gt 0 ]; then
+        echo -e "${YELLOW}Updates available:${RESET} $behind_count commit(s) behind"
+      else
+        echo -e "${GREEN}Up to date${RESET}"
+      fi
+    else
+      echo -e "${RED}Cannot check updates${RESET}"
+    fi
+  else
+    echo -e "${YELLOW}Not a git repository${RESET}"
+  fi
 }
 
 # Fetch README from GitHub repo using git
@@ -136,28 +158,38 @@ main() {
 		readme="${plugin_path}readme"
 	fi
 
-	if [ -n "$readme" ]; then
-		preview_readme "$readme"
-	elif [ "$status" = "pending" ]; then
-		# For pending plugins, try to fetch README from GitHub
-		echo -e "${YELLOW}Fetching README from GitHub...${RESET}"
+  if [ -n "$readme" ]; then
+    preview_readme "$readme"
+    echo ""
+    # Check for updates if it's an installed plugin
+    if [ "$status" = "installed" ]; then
+      check_plugin_updates "$plugin_path"
+    fi
+  elif [ "$status" = "pending" ]; then
+    # For pending plugins, try to fetch README from GitHub
+    echo -e "${YELLOW}Fetching README from GitHub...${RESET}"
 
-		local repo_url="https://github.com/${plugin_name}"
-		local github_readme
-		github_readme=$(fetch_readme_github "$repo_url")
+    local repo_url="https://github.com/${plugin_name}"
+    local github_readme
+    github_readme=$(fetch_readme_github "$repo_url")
 
-		if [ -n "$github_readme" ]; then
-			local tmp_file
-			tmp_file=$(mktemp)
-			printf "%s\n" "$github_readme" >"$tmp_file"
-			preview_readme "$tmp_file"
-			rm -f "$tmp_file"
-		else
-			echo "(No README found locally or on GitHub)"
-		fi
-	else
-		echo "(No README found)"
-	fi
+    if [ -n "$github_readme" ]; then
+      local tmp_file
+      tmp_file=$(mktemp)
+      printf "%s\n" "$github_readme" >"$tmp_file"
+      preview_readme "$tmp_file"
+      rm -f "$tmp_file"
+    else
+      echo "(No README found locally or on GitHub)"
+    fi
+  else
+    echo "(No README found)"
+    # Check for updates if it's an installed plugin (no local README)
+    if [ "$status" = "installed" ]; then
+      echo ""
+      check_plugin_updates "$plugin_path"
+    fi
+  fi
 }
 
 main "$1"

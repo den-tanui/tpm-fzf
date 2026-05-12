@@ -45,7 +45,7 @@ else
 	fi
 
 	if [ "$mode" = "--update" ]; then
-		bash "$CURRENT_DIR/update_plugin.sh" all
+		bash "$CURRENT_DIR/plugin_update.sh" all
 	else
 		bash "$CURRENT_DIR/install_plugins.sh" --tmux-echo
 	fi

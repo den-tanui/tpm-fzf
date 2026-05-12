@@ -92,7 +92,7 @@ main() {
 				--preview-window="right:70%:wrap" \
 				--prompt="Update> " \
 				--footer="Alt+S=source | Alt+I=install | Alt+U=update all | Alt+C=clean | Alt+D=delete | Tab=select" \
-				--bind="alt-u:execute($CURRENT_DIR/../bin/update_plugins all && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
+				--bind="alt-u:execute($CURRENT_DIR/plugin_update.sh all && $CURRENT_DIR/plugin_reload.sh)+reload($CURRENT_DIR/plugin_list.sh --list)" \
 				--bind="alt-s:execute($CURRENT_DIR/plugin_source.sh && $CURRENT_DIR/plugin_reload.sh)" \
 				--bind="alt-i:execute($CURRENT_DIR/plugin_install_selected.sh {} && $CURRENT_DIR/plugin_reload.sh)" \
 				--bind="alt-c:execute($CURRENT_DIR/../bin/clean_plugins && $CURRENT_DIR/plugin_reload.sh)" \
